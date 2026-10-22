@@ -9,12 +9,22 @@ Hobby tier:
   `/api/*` on the same domain, so the browser's same-origin cookies keep
   working with no extra configuration.
 
-Two small files in this repository make that work:
+Three small files in this repository make that work:
 
 - [`vercel.json`](vercel.json) — build command, static output directory, and
   the routing rewrites.
-- [`api/index.ts`](api/index.ts) — the serverless entry that re-exports the
-  Express app from `artifacts/api-server/src/app.ts`.
+- [`artifacts/api-server/build-vercel.mjs`](artifacts/api-server/build-vercel.mjs)
+  — runs during the build to bundle the Express app into one self-contained ESM
+  file at `artifacts/api-server/dist/vercel-app.mjs`.
+- [`api/index.mjs`](api/index.mjs) — the serverless entry. It is plain
+  JavaScript (so Vercel does not type-check it) and simply re-exports the
+  prebuilt bundle as the function handler.
+
+> **Why a prebuilt bundle instead of importing the TypeScript source directly?**
+> Vercel type-checks a TypeScript function entry under `nodenext` module
+> resolution, which rejects the API source's extensionless relative imports
+> (error `TS2834`). Bundling the app with the project's own esbuild (bundler
+> resolution) sidesteps that, and a plain-JS entry is never type-checked.
 
 ## Read this first: in-memory state on serverless
 
@@ -61,7 +71,7 @@ which is outside the scope of this free, ephemeral deployment.
 
 2. **Framework preset:** choose **Other**. The settings below come from
    `vercel.json`, so you do not need to fill in the build fields by hand:
-   - Build command: `BASE_PATH=/ PORT=3000 pnpm --filter @workspace/peopleflow-lab build`
+   - Build command: `BASE_PATH=/ PORT=3000 pnpm --filter @workspace/peopleflow-lab build && pnpm --filter @workspace/api-server exec node build-vercel.mjs`
    - Output directory: `artifacts/peopleflow-lab/dist/public`
 
    > The frontend's `vite.config.ts` requires `BASE_PATH` and `PORT` to be set
@@ -136,6 +146,14 @@ never reach the SPA fallback.
   for PORT.** The build command in `vercel.json` sets both inline. If you
   overrode the build command in the dashboard, restore it or add `BASE_PATH=/`
   and `PORT=3000` as Build-time Environment Variables.
+
+- **Build fails with `TS2834`/`TS2835` (relative imports need file
+  extensions), or `Property 'use' does not exist on type 'Express'`.** This
+  happens if the function imports the TypeScript source directly. Use the
+  prebuilt-bundle setup in this repo: the plain-JS `api/index.mjs` imports
+  `artifacts/api-server/dist/vercel-app.mjs`, which the build command produces
+  via `build-vercel.mjs`. Confirm the build command includes the
+  `... && pnpm --filter @workspace/api-server exec node build-vercel.mjs` step.
 
 - **Function error mentioning `node:sqlite` or an experimental flag.** Confirm
   the project's Node.js version is 22.x or newer. If the runtime still refuses
