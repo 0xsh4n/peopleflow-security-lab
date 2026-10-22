@@ -93,7 +93,7 @@ The values named `secret123` and `pf_test_FAKE_ONLY_123456` are fixed fake strin
 
 **Reproduce verbose error output:** send a malformed SQL search value as shown under A05. The error response includes a stack and the `sqlite::memory:` training database label.
 
-For a direct check, use a single quote as the search term:
+For a direct check, use an unclosed quote followed by `OR` as the search term:
 
 ```sh
 curl -sS -G -b "$COOKIE_JAR" --data-urlencode "search=' OR" \
