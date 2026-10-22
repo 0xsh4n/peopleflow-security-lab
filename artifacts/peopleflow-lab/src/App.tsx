@@ -50,7 +50,7 @@ function Private({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (me.isError) setLocation(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
   }, [me.isError, setLocation]);
-  if (me.isLoading) return <div className="auth-loading"><div className="loading-mark" /><span>Checking lab session</span></div>;
+  if (me.isLoading) return <div className="auth-loading"><div className="loading-mark" /><span>Checking your session</span></div>;
   if (me.isError || !me.data) return <div className="auth-loading"><span>Redirecting to sign in…</span></div>;
   return <AppShell>{children}</AppShell>;
 }

@@ -1,23 +1,25 @@
-# PeopleFlow Security Lab
+# PeopleFlow
 
-PeopleFlow is a grey-box training app with synthetic HR and payroll records. Use it only in a private, isolated workshop to practice identifying and explaining application-security findings.
+PeopleFlow is a people operations workspace for Northstar Studio. It brings employee
+records, payslips, profile editing, an admin role console, document search, system
+configuration, diagnostic and import tools, and activity logs together in one place.
 
-> **Do not publish or expose this app to the public internet.** It intentionally contains broken access controls, injection paths, weak demo credentials, and sensitive-data exposure. The database is seeded with fake data, but the app is not safe for real users or real information.
+This README documents a security assessment of the application. All records are
+fabricated, and the service runs against an in-memory store that resets on restart.
+Run the assessment only against your own instance.
 
-## Start the lab
+## Run the app
 
-The Replit project uses two managed services:
+The project uses two services:
 
 - PeopleFlow web app: open the project preview.
 - API: served under `/api`.
 
-For shell-based checks in the Replit workspace, use the shared proxy:
+Set the base origin you are testing, with no trailing slash:
 
-```sh
-export BASE_URL=http://localhost:80
+```text
+http://localhost:80
 ```
-
-For requests from your own terminal, set `BASE_URL` to the private preview origin you are testing, with no trailing slash. Keep it pointed at this lab only.
 
 Candidate account:
 
@@ -26,245 +28,245 @@ alice@peopleflow.test
 alice123
 ```
 
-Seeded records and reset tokens live in memory and return to their original state when the API process restarts. To reset during a session:
+Records and reset tokens live in memory and return to their original state when the
+API process restarts. To restore the seeded state during a session, replay
+`POST /api/lab/reset` from Burp Repeater (see "Restoring state" below).
 
-```sh
-curl -sS -X POST "$BASE_URL/api/lab/reset"
-```
+## Testing with Burp Suite
 
-The reset clears the lab's in-memory records, sessions, reset tokens, and request-log fixture. Keep separate cookie jars for separate exercises:
+These steps assume Burp Suite (Community or Professional) with the browser proxying
+through Burp's listener (default `127.0.0.1:8080`).
 
-```sh
-export COOKIE_JAR=/tmp/peopleflow-lab.cookies
-curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"alice@peopleflow.test","password":"alice123"}' \
-  "$BASE_URL/api/login"
-```
+1. In Burp, open **Proxy → Options** and confirm the listener is running.
+2. Point your browser at the Burp proxy and install Burp's CA certificate so HTTPS
+   intercepts cleanly.
+3. Browse to the app and sign in as the candidate account above. Burp's **Proxy →
+   HTTP history** now records the session cookie (`pf_session`) and every `/api`
+   request.
+4. Right-click any captured `/api` request and choose **Send to Repeater** to replay
+   and tamper with it. The session cookie rides along with each replayed request, so
+   you stay authenticated as Alice.
 
-## Findings and safe reproductions
+Keep a separate browser profile (or Burp project) per exercise so cookies do not mix.
 
-These examples use only the seeded fake tenant. The expected outcomes describe the training implementation, not a production-safe design.
+## Findings and reproductions
+
+The directory UI is a benign company directory: it lists names, departments, roles,
+and contact details, and each person can see only their own full record and payslip.
+The findings below are reached by tampering with requests in Burp, not by reading the
+rendered pages.
 
 ### A01 — Broken access control: IDOR, BOLA, and role escalation
 
-**Impact:** Any signed-in employee can fetch other employees' fake PII and payslips by changing an ID. The admin API checks for a session but does not check the user's role. Profile updates also accept role and salary fields.
+**Impact:** Any signed-in employee can read other employees' records and payslips by
+changing an ID in the request. The admin API checks for a session but not the caller's
+role. Profile updates also accept `role` and `salary` fields.
 
-**Reproduce employee and payslip access:**
+**Reproduce employee and payslip access (IDOR/BOLA):**
 
-```sh
-curl -sS -b "$COOKIE_JAR" "$BASE_URL/api/employees/108"
-curl -sS -b "$COOKIE_JAR" "$BASE_URL/api/employees/108/payslip"
-```
-
-Compare those responses with Alice's record at `/api/employees/101`. Both include sensitive-looking but fake values.
+1. As Alice, open your own record in the directory and send the resulting
+   `GET /api/employees/101` request to **Repeater**.
+2. In Repeater, change the path ID to another employee, e.g.
+   `GET /api/employees/108`, and click **Send**. The response returns employee 108's
+   full record, including the `ssn` and `bankAccount` fields that the directory UI
+   never displays for other people.
+3. Repeat for the payslip: change `GET /api/employees/101/payslip` to
+   `GET /api/employees/108/payslip`.
+4. To sweep the whole directory, send one `GET /api/employees/{id}` request to
+   **Intruder**, mark the ID as the payload position, and run a numeric payload
+   (for example 101–108).
 
 **Reproduce role escalation through the admin API:**
 
-```sh
-curl -sS -b "$COOKIE_JAR" -H 'Content-Type: application/json' \
-  -d '{"userId":101,"role":"SUPER_ADMIN"}' \
-  "$BASE_URL/api/admin/role"
-curl -sS -b "$COOKIE_JAR" "$BASE_URL/api/admin"
-```
+1. Send a captured `/api` request to **Repeater** and change it to
+   `POST /api/admin/role`.
+2. Set the `Content-Type` header to `application/json` and the body to:
+
+   ```json
+   {"userId":101,"role":"SUPER_ADMIN"}
+   ```
+
+3. **Send**, then replay `GET /api/admin` to confirm Alice now holds `SUPER_ADMIN`.
 
 **Reproduce mass assignment through profile update:**
 
-```sh
-curl -sS -b "$COOKIE_JAR" -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{"role":"SUPER_ADMIN","salary":-50000,"bankAccount":"0000000099999"}' \
-  "$BASE_URL/api/profile/update"
-```
+1. In **Repeater**, build `POST /api/profile/update` with a JSON body:
 
-The profile flow also accepts those fields through `PATCH /api/profile`.
+   ```json
+   {"role":"SUPER_ADMIN","salary":-50000,"bankAccount":"0000000099999"}
+   ```
+
+2. **Send**. The same fields are also accepted through `PATCH /api/profile`.
 
 ### A02 — Security misconfiguration
 
-**Impact:** The lab's public config endpoint discloses training-only values, error handling returns stack details, and API CORS allows any origin.
+**Impact:** The config endpoint discloses internal values, error handling returns
+stack details, and API CORS allows any origin.
 
-**Reproduce config exposure:**
+**Reproduce config exposure:** in **Repeater**, send `GET /api/config`. The response
+includes `sessionSecret` (`secret123`) and `thirdPartyKey`
+(`pf_test_FAKE_ONLY_123456`).
 
-```sh
-curl -sS "$BASE_URL/api/config"
-```
+**Reproduce verbose error output:** in **Repeater**, send
+`GET /api/employees?search=' OR` (an unclosed quote followed by `OR`). The response
+includes the SQL error, a stack trace, and the `sqlite::memory:` database label.
 
-The values named `secret123` and `pf_test_FAKE_ONLY_123456` are fixed fake strings. No workspace secret or real third-party credential is read by this endpoint.
-
-**Reproduce verbose error output:** send a malformed SQL search value as shown under A05. The error response includes a stack and the `sqlite::memory:` training database label.
-
-For a direct check, use an unclosed quote followed by `OR` as the search term:
-
-```sh
-curl -sS -G -b "$COOKIE_JAR" --data-urlencode "search=' OR" \
-  "$BASE_URL/api/employees"
-```
-
-The training API returns the query error, stack, and in-memory database label.
-
-**Check CORS:**
-
-```sh
-curl -sSI -H 'Origin: https://example.invalid' "$BASE_URL/api/config"
-```
-
-Look for `Access-Control-Allow-Origin: *`.
+**Check CORS:** in **Repeater**, add an `Origin: https://example.invalid` header to
+`GET /api/config` and send. Look for `Access-Control-Allow-Origin: *` in the response
+headers.
 
 ### A03 — Software supply-chain failures
 
-**Status in this safe build:** Not installed as a live vulnerability. The original brief asked for known-vulnerable packages and an unpinned third-party CDN script. This build does not load those packages or scripts; adding them would expose the app's visitors to real dependency risk. Treat A03 as an interview discussion prompt, not a finding reproducible from the running bundle.
-
-For a code review, inspect `package.json` and the built page's script sources. Do not infer that an outdated package is present from this README.
+**Status:** Not present as a live issue. The application does not install
+known-vulnerable packages or load an unpinned external script. For a code review,
+inspect `package.json` and the built page's script sources rather than inferring a
+vulnerable dependency from this README.
 
 ### A04 — Cryptographic failures
 
-**Impact:** Demo passwords are stored as unsalted MD5 hashes; employee SSNs and bank-account fixtures are stored as plaintext in the in-memory SQLite database. Session cookies use an HMAC signature with the hardcoded weak training key exposed by `/api/config`.
+**Impact:** Passwords are stored as unsalted MD5 hashes; SSNs and bank-account values
+are stored as plaintext in the in-memory SQLite database. Session cookies use an
+HMAC-SHA256 signature made with the weak key disclosed by `/api/config`.
 
-**Reproduce the exposed PII:** use Alice's session to request another employee, for example `/api/employees/108`. The response returns the seeded SSN and bank-account fields in plaintext.
+**Reproduce the exposed PII:** use the A01 IDOR step in **Repeater** to read
+`GET /api/employees/108`; the response returns the SSN and bank-account fields in
+plaintext.
 
-**Grey-box source check:** inspect `artifacts/api-server/src/routes/peopleflow.ts`. The seed setup creates `password_md5`, and the login path compares MD5 digests. The database is created with Node's in-process SQLite module and does not write a database file.
-
-The cookie value has the form `session-id.signature`. The signature is an HMAC-SHA256 made with the disclosed training key. The session ID is intentionally retained through login, as described under A07.
+**Source check:** inspect `artifacts/api-server/src/routes/peopleflow.ts`. The seed
+creates `password_md5`, and the login path compares MD5 digests. The cookie value has
+the form `session-id.signature`, where the signature is an HMAC-SHA256 over the
+session ID with the disclosed key. The session ID is retained through login (see A07).
 
 ### A05 — Injection: SQL injection and cross-site scripting
 
-**SQL injection:** employee search concatenates the input into a SQLite `LIKE` query.
-
-```sh
-curl -sS -G -b "$COOKIE_JAR" \
-  --data-urlencode "search=' OR '1'='1' -- " \
-  "$BASE_URL/api/employees"
-```
-
-The result includes all seeded employees rather than only matches. A syntactically invalid search term can also return the verbose error described under A02.
-
-**Reflected XSS:** open this route in a browser using an authenticated session and a harmless alert payload:
+**SQL injection:** employee search concatenates input into a SQLite `LIKE` query. In
+**Repeater**, send:
 
 ```text
-/api/employee-search-view?search=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E
+GET /api/employees?search=' OR '1'='1' -- 
 ```
 
-The template includes the raw search text in the HTML response. The proof-of-concept only displays a local alert; do not replace it with code that reads or transmits browser data.
+The result returns all seeded employees rather than only matches.
 
-**Stored XSS:** save a harmless test payload in Alice's bio:
+**Reflected XSS:** in **Repeater** (or by pasting into the browser while proxied),
+request:
 
-```sh
-curl -sS -b "$COOKIE_JAR" -X PATCH \
-  -H 'Content-Type: application/json' \
-  -d '{"bio":"<img src=x onerror=alert(1)>"}' \
-  "$BASE_URL/api/profile"
+```text
+GET /api/employee-search-view?search=<img src=x onerror=alert(1)>
 ```
 
-Then open `/api/employee-view/101` in the same browser. The legacy EJS view renders the bio without escaping, so the alert runs in that page's origin. Reset the lab after the exercise.
+The server-rendered view includes the raw search text, so the payload executes. Use a
+harmless `alert(1)` proof only.
 
-**NoSQL-style operator injection:** the document fixture models Mongo query-operator behavior in memory; it does not start an external MongoDB service.
+**Stored XSS:** in **Repeater**, send `PATCH /api/profile` with:
 
-```sh
-curl -sS -G -b "$COOKIE_JAR" \
-  --data-urlencode 'filter[employee_id][$ne]=101' \
-  "$BASE_URL/api/documents"
+```json
+{"bio":"<img src=x onerror=alert(1)>"}
 ```
 
-The operator-shaped filter returns documents not owned by employee 101. This is a local semantic simulation, not an actual MongoDB query.
+Then load `GET /api/employee-view/101` in the proxied browser. The EJS view renders
+the bio without escaping, so the payload runs in that page's origin. Restore state
+afterward.
+
+**NoSQL-style operator injection:** the document fixture models Mongo query-operator
+behavior in memory. In **Repeater**, send:
+
+```text
+GET /api/documents?filter[employee_id][$ne]=101
+```
+
+The operator-shaped filter returns documents not owned by employee 101.
 
 ### A06 — Insecure design and business-logic flaws
 
-**Predictable, reusable reset token:** request a token for the candidate account:
+**Predictable, reusable reset token:** in **Repeater**, send `POST /api/forgot-password`
+with:
 
-```sh
-curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"email":"alice@peopleflow.test"}' \
-  "$BASE_URL/api/forgot-password"
+```json
+{"email":"alice@peopleflow.test"}
 ```
 
-The first token in a fresh process is `4100`, and subsequent tokens increment. Use the same returned token more than once:
+The first token in a fresh process is `4100`, and later tokens increment. Replay
+`POST /api/reset-password` twice with the same token to confirm it has no expiry and
+no single-use check:
 
-```sh
-curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"token":"4100","password":"training-change-1"}' \
-  "$BASE_URL/api/reset-password"
-curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"token":"4100","password":"training-change-2"}' \
-  "$BASE_URL/api/reset-password"
+```json
+{"token":"4100","password":"change-1"}
 ```
 
-The token has no expiry and remains usable. Restore the fixture with `/api/lab/reset`.
+```json
+{"token":"4100","password":"change-2"}
+```
 
-**Unbounded salary update:** A01's mass-assignment request sets Alice's salary to a negative amount. No approval or validation step is applied.
+**Unbounded salary update:** the A01 mass-assignment request sets a negative salary. No
+approval or validation step is applied.
 
 ### A07 — Authentication failures
 
-**Username enumeration:** compare the errors for an unknown email and a known email with the wrong password:
+**Username enumeration:** in **Repeater**, send two `POST /api/login` requests and
+compare the error messages:
 
-```sh
-curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"email":"nobody@peopleflow.test","password":"wrong"}' "$BASE_URL/api/login"
-curl -sS -X POST -H 'Content-Type: application/json' \
-  -d '{"email":"alice@peopleflow.test","password":"wrong"}' "$BASE_URL/api/login"
+```json
+{"email":"nobody@peopleflow.test","password":"wrong"}
 ```
 
-The messages differ. The demo login also has no lockout or rate limit.
-
-**Session fixation:** request a pre-authentication session ID, then log in with the same cookie jar:
-
-```sh
-curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" "$BASE_URL/api/session"
-curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"alice@peopleflow.test","password":"alice123"}' "$BASE_URL/api/login"
+```json
+{"email":"alice@peopleflow.test","password":"wrong"}
 ```
 
-The `sessionId` is reused after authentication instead of being rotated.
+The messages differ, and there is no lockout or rate limit.
+
+**Session fixation:** in **Repeater**, send `GET /api/session` to obtain a
+pre-authentication session ID, then send `POST /api/login` with the same cookie. The
+`sessionId` is reused after authentication instead of being rotated.
 
 ### A08 — Software/data integrity: import handling
 
-**Status:** The import endpoint is deliberately modeled, not implemented with an unsafe deserializer. It never executes code or changes `Object.prototype`.
+**Status:** The import endpoint is modeled, not implemented with an unsafe
+deserializer; it never executes code or changes `Object.prototype`. In **Repeater**,
+send `POST /api/import` with:
 
-```sh
-curl -sS -b "$COOKIE_JAR" -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{"__proto__":{"trainingFlag":true},"employees":[]}' \
-  "$BASE_URL/api/import"
+```json
+{"__proto__":{"flag":true},"employees":[]}
 ```
 
-The response confirms that the key was noticed and the payload was safely simulated. This demonstrates where an integrity review belongs without providing a code-execution path.
+The response confirms the key was noticed and the payload was safely handled. This
+shows where an integrity review belongs without providing a code-execution path.
 
 ### A09 — Security logging and alerting failures
 
-**Impact:** There is no dedicated audit event for failed logins, role changes, or PII reads. Separately, the training request log records full request bodies, including fake passwords, and the log endpoint is public.
-
-After making a login request, retrieve the fixture:
-
-```sh
-curl -sS "$BASE_URL/api/logs"
-```
-
-The API process console also receives these request-body records. Only use fake credentials in this lab.
+**Impact:** There is no dedicated audit event for failed logins, role changes, or PII
+reads. Separately, the request log records full request bodies, including passwords,
+and the log endpoint requires no authentication. After making a login request, send
+`GET /api/logs` in **Repeater** to read the captured bodies.
 
 ### A10 — Exceptional-condition handling and unsafe diagnostics
 
-**Fail-open auth simulation:** this lab-only header forces an auth-middleware exception. The catch branch continues with a synthetic admin identity:
+**Fail-open auth:** this header forces an auth-middleware exception, and the catch
+branch continues with an admin identity. In **Repeater**, add the header
+`x-lab-trigger: auth-error` to `GET /api/admin` and send. No login cookie is required.
 
-```sh
-curl -sS -H 'x-lab-trigger: auth-error' "$BASE_URL/api/admin"
+**Command-injection check:** the diagnostic endpoint inspects a string and reports when
+shell metacharacters are present, but never invokes a shell. In **Repeater**, send:
+
+```text
+GET /api/admin/tools?target=localhost; echo test
 ```
 
-No login cookie is required for this one controlled demonstration.
+The response is marked `simulated: true`.
 
-**Command-injection simulation:** the diagnostic endpoint inspects a harmless string and reports when shell metacharacters are present, but never invokes a shell or runs a command:
+## Restoring state
 
-```sh
-curl -sS -G -b "$COOKIE_JAR" \
-  --data-urlencode 'target=localhost; echo lab-only' \
-  "$BASE_URL/api/admin/tools"
-```
+To restore the seeded records, sessions, tokens, and request log, replay
+`POST /api/lab/reset` from **Repeater**. The response confirms the data has been
+restored.
 
-The response is marked `simulated: true`. Do not use this route to test a real host.
+## Implementation boundaries
 
-## Lab implementation boundaries
-
-- All employee records and passwords are synthetic. The SQLite database is in-memory and reseeded on process start.
+- All employee records and passwords are fabricated. The SQLite database is in-memory
+  and reseeded on process start.
 - Document search uses a small in-memory Mongo-shaped fixture, not a live database.
-- The import and diagnostic exercises are safe simulations. No shell command, unsafe deserializer, or user-supplied code is executed.
-- A03 is intentionally omitted as a live issue: the app does not install known-vulnerable dependencies or load an unpinned external script.
-- The app contains intentional vulnerabilities and should not be published or used with real data.
+- The import and diagnostic endpoints are safe: no shell command, unsafe deserializer,
+  or user-supplied code is executed.
+- A03 is not present as a live issue: the app does not install known-vulnerable
+  dependencies or load an unpinned external script.

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "BASE_PATH=/ PORT=3000 pnpm --filter @workspace/peopleflow-lab build",
+  "outputDirectory": "artifacts/peopleflow-lab/dist/public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

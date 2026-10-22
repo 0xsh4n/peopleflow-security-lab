@@ -1,6 +1,6 @@
-# PeopleFlow Security Lab
+# PeopleFlow
 
-An intentionally vulnerable grey-box training app with synthetic HR and payroll data. Use only in a private lab; do not deploy publicly or enter real information.
+A people operations workspace with HR and payroll data for Northstar Studio. Records are fabricated and the store is in-memory. See `README.md` for the security assessment notes.
 
 ## Run & Operate
 
@@ -17,8 +17,8 @@ An intentionally vulnerable grey-box training app with synthetic HR and payroll 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - Web: React + Vite
 - API: Express 5
-- Lab data: in-memory SQLite via `node:sqlite`; fake documents use an in-memory Mongo-style fixture
-- Legacy HTML exercise views: EJS
+- Data: in-memory SQLite via `node:sqlite`; documents use an in-memory Mongo-style fixture
+- Server-rendered HTML views: EJS
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
@@ -26,23 +26,23 @@ An intentionally vulnerable grey-box training app with synthetic HR and payroll 
 ## Where things live
 
 - `artifacts/peopleflow-lab` — PeopleFlow React/Vite interface
-- `artifacts/api-server/src/routes/peopleflow.ts` — training API, seeded records, and legacy EJS views
+- `artifacts/api-server/src/routes/peopleflow.ts` — API routes, seeded records, and EJS views
 - `lib/api-spec/openapi.yaml` — API contract and generated client source
-- `README.md` — setup and manual finding reproductions
+- `README.md` — setup and security assessment reproductions
 
 ## Architecture decisions
 
-- State is in memory and resets on API restart or the lab reset endpoint.
-- Unsafe import and diagnostic examples are simulations; no shell command or user-supplied code is executed.
+- State is in memory and resets on API restart or the reset endpoint.
+- Import and diagnostic endpoints are safe; no shell command or user-supplied code is executed.
 - The document-search route models Mongo-style query operators without starting a MongoDB server.
 
 ## Product
 
-PeopleFlow presents a fake HR workspace with employee records, payslips, profile editing, an admin role console, document search, configuration, diagnostic/import tools, and request logs. The README documents expected results for local training exercises.
+PeopleFlow presents an HR workspace with employee records, payslips, profile editing, an admin role console, document search, configuration, diagnostic/import tools, and request logs. The README documents the security assessment and expected results.
 
 ## User preferences
 
-- Keep the intentionally vulnerable exercises scoped to synthetic training data, and include reproduction steps in the README.
+- Keep the security findings scoped to the in-memory fabricated data, and include Burp Suite reproduction steps in the README.
 
 ## Gotchas
 
