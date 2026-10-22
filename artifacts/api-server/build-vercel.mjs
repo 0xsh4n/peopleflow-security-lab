@@ -29,9 +29,14 @@ await esbuild({
   outfile,
   logLevel: "info",
   // node: built-ins (including node:sqlite) are external automatically.
-  // Transport-only deps are externalized because they are only reached when a
-  // pino transport is configured, which never happens in production.
-  external: ["*.node", "pino-pretty", "thread-stream"],
+  // Everything else is bundled in so the function needs no node_modules at
+  // runtime. In particular pino requires `thread-stream` at module load, so it
+  // MUST be bundled (leaving it external caused a runtime
+  // "Cannot find module 'thread-stream'"). Its worker file is only used when a
+  // pino transport is created, which never happens in production, so bundling
+  // the module is safe. `pino-pretty` is referenced only as a runtime transport
+  // target string and is never statically imported, so it is not pulled in.
+  external: ["*.node"],
   sourcemap: false,
   banner: {
     js: `import { createRequire as __bannerCrReq } from 'node:module';

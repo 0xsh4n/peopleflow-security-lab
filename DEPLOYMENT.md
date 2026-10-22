@@ -155,6 +155,13 @@ never reach the SPA fallback.
   via `build-vercel.mjs`. Confirm the build command includes the
   `... && pnpm --filter @workspace/api-server exec node build-vercel.mjs` step.
 
+- **Runtime error `Cannot find module 'thread-stream'` (or another pino
+  dependency).** The API bundle must inline these; they cannot be left
+  external, because pino loads `thread-stream` at module load. The build script
+  `artifacts/api-server/build-vercel.mjs` externalizes only `*.node`, which
+  bundles them in. If you changed that `external` list, restore it to
+  `["*.node"]` and redeploy.
+
 - **Function error mentioning `node:sqlite` or an experimental flag.** Confirm
   the project's Node.js version is 22.x or newer. If the runtime still refuses
   the import, add an Environment Variable `NODE_OPTIONS` with the value
