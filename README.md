@@ -13,24 +13,44 @@ Run the assessment only against your own instance.
 The project uses two services:
 
 - PeopleFlow web app: open the project preview.
-- API: served under `/api`.
+- API: served under `/api` on the same origin.
 
-Set the base origin you are testing, with no trailing slash:
+Set the base origin you are testing, with no trailing slash. Locally this is the
+dev server:
 
 ```text
 http://localhost:80
 ```
 
-Candidate account:
+If you deploy to Vercel (see [DEPLOYMENT.md](DEPLOYMENT.md)), use your deployment
+origin instead, for example `https://your-app.vercel.app`. The `/api` routes live
+on that same origin, so the steps below are unchanged.
 
-```text
-alice@peopleflow.test
-alice123
-```
+## Accounts
 
-Records and reset tokens live in memory and return to their original state when the
+All accounts are fabricated. Passwords are the seeded values and are safe to use
+only against your own instance. The `id` column is the employee id used when
+tampering with `/api/employees/:id` requests.
+
+| id  | Name         | Email                        | Password     | Role         | Department        |
+| --- | ------------ | ---------------------------- | ------------ | ------------ | ----------------- |
+| 101 | Alice Morgan | `alice@peopleflow.test`      | `alice123`   | EMPLOYEE     | Customer Success  |
+| 102 | Bob Bennett  | `bob@peopleflow.test`        | `bob123`     | EMPLOYEE     | Sales             |
+| 103 | Morgan Reyes | `manager@peopleflow.test`    | `managerpass`| MANAGER      | Customer Success  |
+| 104 | Jordan Patel | `hr@peopleflow.test`         | `hrpass`     | HR_ADMIN     | People Operations |
+| 105 | Taylor Kim   | `taylor@peopleflow.test`     | `taylor123`  | EMPLOYEE     | Finance           |
+| 106 | Casey Brown  | `casey@peopleflow.test`      | `casey123`   | EMPLOYEE     | Engineering       |
+| 107 | Riley Shah   | `riley@peopleflow.test`      | `riley123`   | EMPLOYEE     | Operations        |
+| 108 | Avery Chen   | `superadmin@peopleflow.test` | `Admin@123`  | SUPER_ADMIN  | IT                |
+
+Use `alice@peopleflow.test` / `alice123` as the default low-privilege account for
+the access-control findings: it is an ordinary `EMPLOYEE`, so anything it can reach
+beyond its own record demonstrates a broken boundary.
+
+Records and reset tokens live in memory and return to these seeded values when the
 API process restarts. To restore the seeded state during a session, replay
-`POST /api/lab/reset` from Burp Repeater (see "Restoring state" below).
+`POST /api/lab/reset` from Burp Repeater (see "Restoring state" below). A password
+changed through the reset-password flow reverts on the next restart or reset.
 
 ## Testing with Burp Suite
 
