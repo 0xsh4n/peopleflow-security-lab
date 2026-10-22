@@ -1,0 +1,1 @@
+- [In-process SQLite in Node 24](node-sqlite.md) — the built-in SQLite module works for disposable in-memory lab data when native package scripts are blocked.

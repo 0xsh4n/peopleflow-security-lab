@@ -26,6 +26,7 @@ app.use(
   }),
 );
 app.use(cors());
+app.set("query parser", "extended");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

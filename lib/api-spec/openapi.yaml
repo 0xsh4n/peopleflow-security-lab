@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: peopleflow
+    description: PeopleFlow training lab
 paths:
   /healthz:
     get:
@@ -24,6 +26,383 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /login:
+    post:
+      operationId: peopleFlowLogin
+      tags: [peopleflow]
+      summary: Sign in to the training tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Session established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResult"
+  /logout:
+    post:
+      operationId: peopleFlowLogout
+      tags: [peopleflow]
+      summary: End the current training session
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
+  /me:
+    get:
+      operationId: peopleFlowMe
+      tags: [peopleflow]
+      summary: Return the current training user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /session:
+    get:
+      operationId: peopleFlowSession
+      tags: [peopleflow]
+      summary: Create or inspect the current lab session
+      responses:
+        "200":
+          description: Current session state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+  /dashboard:
+    get:
+      operationId: peopleFlowDashboard
+      tags: [peopleflow]
+      summary: Read dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /employees:
+    get:
+      operationId: peopleFlowEmployees
+      tags: [peopleflow]
+      summary: Search the employee directory
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+  /employees/{id}:
+    get:
+      operationId: peopleFlowEmployee
+      tags: [peopleflow]
+      summary: Read an employee profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+  /employee-view/{id}:
+    get:
+      operationId: peopleFlowEmployeeHtmlView
+      tags: [peopleflow]
+      summary: Render the legacy employee HTML view
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: HTML employee view
+          content:
+            text/html:
+              schema:
+                type: string
+  /employee-search-view:
+    get:
+      operationId: peopleFlowEmployeeSearchHtmlView
+      tags: [peopleflow]
+      summary: Render the legacy employee search HTML view
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML search view
+          content:
+            text/html:
+              schema:
+                type: string
+  /employees/{id}/payslip:
+    get:
+      operationId: peopleFlowPayslip
+      tags: [peopleflow]
+      summary: Read an employee payslip
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Fake payroll data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payslip"
+  /profile:
+    get:
+      operationId: peopleFlowProfile
+      tags: [peopleflow]
+      summary: Read the current employee profile
+      responses:
+        "200":
+          description: Current employee profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    patch:
+      operationId: peopleFlowUpdateProfile
+      tags: [peopleflow]
+      summary: Update the current profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+  /profile/update:
+    post:
+      operationId: peopleFlowUpdateProfileCompat
+      tags: [peopleflow]
+      summary: Update profile through the legacy endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+  /admin/users:
+    get:
+      operationId: peopleFlowAdminUsers
+      tags: [peopleflow]
+      summary: List tenant users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+  /admin:
+    get:
+      operationId: peopleFlowAdmin
+      tags: [peopleflow]
+      summary: Read the admin console
+      responses:
+        "200":
+          description: Tenant user list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+  /admin/role:
+    post:
+      operationId: peopleFlowChangeRole
+      tags: [peopleflow]
+      summary: Change a user's training role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleChange"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /documents:
+    get:
+      operationId: peopleFlowDocuments
+      tags: [peopleflow]
+      summary: Search fake employee documents
+      parameters:
+        - in: query
+          name: filter
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+  /forgot-password:
+    post:
+      operationId: peopleFlowForgotPassword
+      tags: [peopleflow]
+      summary: Request a reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Reset request result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetRequestResult"
+  /reset-password:
+    post:
+      operationId: peopleFlowResetPassword
+      tags: [peopleflow]
+      summary: Set a password using a reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetInput"
+      responses:
+        "200":
+          description: Reset result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
+  /config:
+    get:
+      operationId: peopleFlowConfig
+      tags: [peopleflow]
+      summary: Read simulated system configuration
+      responses:
+        "200":
+          description: Fake training configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabConfig"
+  /admin/tools:
+    get:
+      operationId: peopleFlowAdminTools
+      tags: [peopleflow]
+      summary: Run a harmless simulated diagnostic
+      parameters:
+        - in: query
+          name: target
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Diagnostic output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticResult"
+  /import:
+    post:
+      operationId: peopleFlowImport
+      tags: [peopleflow]
+      summary: Import fake employee data in simulation mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportInput"
+      responses:
+        "200":
+          description: Import simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+  /logs:
+    get:
+      operationId: peopleFlowLogs
+      tags: [peopleflow]
+      summary: Read simulated application logs
+      responses:
+        "200":
+          description: Fake training logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /lab/reset:
+    post:
+      operationId: peopleFlowResetLab
+      tags: [peopleflow]
+      summary: Restore seeded training state
+      responses:
+        "200":
+          description: Training state restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResult"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +412,137 @@ components:
           type: string
       required:
         - status
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+    User:
+      type: object
+      required: [id, email, role, fullName]
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        role: { type: string }
+        fullName: { type: string }
+    SessionResult:
+      type: object
+      required: [user, sessionId]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        sessionId: { type: string }
+        warning: { type: string }
+    SessionInfo:
+      type: object
+      required: [sessionId, authenticated]
+      properties:
+        sessionId: { type: string }
+        authenticated: { type: boolean }
+    Employee:
+      type: object
+      required: [id, fullName, email, role, department, salary, ssn, bankAccount, bio]
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        email: { type: string }
+        role: { type: string }
+        department: { type: string }
+        salary: { type: number }
+        ssn: { type: string }
+        bankAccount: { type: string }
+        bio: { type: string }
+        managerId: { type: ["integer", "null"] }
+    DashboardSummary:
+      type: object
+      required: [employeeCount, payrollTotal, pendingReviews, currentUser]
+      properties:
+        employeeCount: { type: integer }
+        payrollTotal: { type: number }
+        pendingReviews: { type: integer }
+        currentUser: { $ref: "#/components/schemas/User" }
+    Payslip:
+      type: object
+      required: [employeeId, employeeName, period, grossPay, netPay, bankAccount]
+      properties:
+        employeeId: { type: integer }
+        employeeName: { type: string }
+        period: { type: string }
+        grossPay: { type: number }
+        netPay: { type: number }
+        bankAccount: { type: string }
+    ProfileUpdate:
+      type: object
+      properties:
+        fullName: { type: string }
+        bio: { type: string }
+        bankAccount: { type: string }
+        salary: { type: number }
+        role: { type: string }
+    RoleChange:
+      type: object
+      required: [userId, role]
+      properties:
+        userId: { type: integer }
+        role: { type: string }
+    Document:
+      type: object
+      required: [id, employeeId, title, type, body]
+      properties:
+        id: { type: integer }
+        employeeId: { type: integer }
+        title: { type: string }
+        type: { type: string }
+        body: { type: string }
+    ForgotPasswordInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string }
+    ResetRequestResult:
+      type: object
+      required: [message, token]
+      properties:
+        message: { type: string }
+        token: { type: string }
+    PasswordResetInput:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string }
+    LabConfig:
+      type: object
+      required: [app, sessionSecret, thirdPartyKey, environment]
+      properties:
+        app: { type: string }
+        sessionSecret: { type: string }
+        thirdPartyKey: { type: string }
+        environment: { type: string }
+    DiagnosticResult:
+      type: object
+      required: [target, output, simulated]
+      properties:
+        target: { type: string }
+        output: { type: string }
+        simulated: { type: boolean }
+    ImportInput:
+      type: object
+      properties:
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+    ImportResult:
+      type: object
+      required: [accepted, simulated, message]
+      properties:
+        accepted: { type: integer }
+        simulated: { type: boolean }
+        message: { type: string }
+    MessageResult:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
 

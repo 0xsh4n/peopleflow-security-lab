@@ -1,44 +1,53 @@
-# [Project name]
+# PeopleFlow Security Lab
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An intentionally vulnerable grey-box training app with synthetic HR and payroll data. Use only in a private lab; do not deploy publicly or enter real information.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/peopleflow-lab run dev` — run the PeopleFlow web app
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- No external service credentials are required.
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Web: React + Vite
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
+- Lab data: in-memory SQLite via `node:sqlite`; fake documents use an in-memory Mongo-style fixture
+- Legacy HTML exercise views: EJS
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/peopleflow-lab` — PeopleFlow React/Vite interface
+- `artifacts/api-server/src/routes/peopleflow.ts` — training API, seeded records, and legacy EJS views
+- `lib/api-spec/openapi.yaml` — API contract and generated client source
+- `README.md` — setup and manual finding reproductions
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- State is in memory and resets on API restart or the lab reset endpoint.
+- Unsafe import and diagnostic examples are simulations; no shell command or user-supplied code is executed.
+- The document-search route models Mongo-style query operators without starting a MongoDB server.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+PeopleFlow presents a fake HR workspace with employee records, payslips, profile editing, an admin role console, document search, configuration, diagnostic/import tools, and request logs. The README documents expected results for local training exercises.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep the intentionally vulnerable exercises scoped to synthetic training data, and include reproduction steps in the README.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Do not publish this app or use real credentials/employee information.
+- Node may print an experimental warning for the built-in SQLite module.
 
 ## Pointers
 

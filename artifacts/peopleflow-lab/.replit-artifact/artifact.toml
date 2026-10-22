@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "PeopleFlow Security Lab"
+description = "A fake HR and payroll app for practicing grey-box security testing in a contained training environment, with seeded demo accounts and a reproduction guide."
+version = "1.0.0"
+id = "artifacts/peopleflow-lab"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21391
+
+[services.development]
+run = "pnpm --filter @workspace/peopleflow-lab run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/peopleflow-lab", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/peopleflow-lab/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21391"
+BASE_PATH = "/"
